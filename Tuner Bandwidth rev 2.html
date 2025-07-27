@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bandwidth Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; background: #f9f9f9; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    label { display: block; margin: 1rem 0 0.3rem; font-weight: bold; }
+    input, select { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+    .error-message { color: red; font-size: 0.9rem; display: none; margin-top: 0.2rem; }
+    button { margin-top: 1.5rem; padding: 0.75rem; background-color: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 1rem; }
+    button:hover { background-color: #0056b3; }
+    .button-group { display: flex; gap: 1rem; }
+    .button-group button { flex: 1; }
+    .result { margin-top: 1.5rem; font-weight: bold; font-size: 1.2rem; color: #333; }
+    canvas { margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Bandwidth Calculator</h2>
+    <label for="f1">Frequency 1 (kHz):</label>
+    <input type="number" id="f1" min="30" max="500" />
+    <div class="error-message" id="f1-error">Value must be between 30 and 500 kHz.</div>
+
+    <label for="f2">Frequency 2 (kHz):</label>
+    <input type="number" id="f2" min="30" max="500" />
+    <div class="error-message" id="f2-error">Value must be between 30 and 500 kHz.</div>
+
+    <label for="r">Resistance (Ohms):</label>
+    <input type="number" id="r" />
+
+    <label for="ccvt">CCVT Capacitance (µF):</label>
+    <input type="number" step="any" id="ccvt" />
+
+    <label for="blocking">Blocking Capacitance (µF):</label>
+    <input type="number" step="any" id="blocking" />
+
+    <label for="k">Select n (to set K):</label>
+    <select id="k">
+      <option value="0.4070">n = 1 (K = 0.4070)</option>
+      <option value="0.6366">n = 2 (K = 0.6366)</option>
+      <option value="1.1890">n = 3 (K = 1.1890)</option>
+      <option value="1.5450">n = 4 (K = 1.5450)</option>
+    </select>
+
+    <div class="button-group">
+      <button onclick="calculateBandwidth()">Calculate Bandwidth</button>
+      <button onclick="resetForm()">Reset</button>
+    </div>
+
+    <div class="result" id="userDesiredResult"></div>
+    <div class="result" id="result"></div>
+    <div class="result" id="geoMeanResult"></div>
+
+    <canvas id="bandwidthChart" width="400" height="200"></canvas>
+    <canvas id="bandwidthChartF1" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    let chart, chartF1;
+
+    window.onload = () => {
+      const saved = JSON.parse(localStorage.getItem('bandwidthCalc'));
+      if (saved) {
+        document.getElementById('f1').value = saved.f1;
+        document.getElementById('f2').value = saved.f2;
+        document.getElementById('r').value = saved.r;
+        document.getElementById('ccvt').value = saved.ccvt;
+        document.getElementById('blocking').value = saved.blocking;
+        document.getElementById('k').value = saved.k;
+        calculateBandwidth();
+      }
+    }
+
+    function calculateBandwidth() {
+      const f2Input = document.getElementById('f2');
+      const f2Error = document.getElementById('f2-error');
+      const f2Value = parseFloat(f2Input.value);
+
+      if (f2Value < 30 || f2Value > 500) {
+        f2Error.style.display = 'block';
+        return;
+      } else {
+        f2Error.style.display = 'none';
+      }
+      const f1Input = document.getElementById('f1');
+      const f1Error = document.getElementById('f1-error');
+      const f1 = parseFloat(f1Input.value);
+
+      if (f1 < 30 || f1 > 500) {
+        f1Error.style.display = 'block';
+        return;
+      } else {
+        f1Error.style.display = 'none';
+      }
+
+      const f2 = parseFloat(document.getElementById('f2').value) * 1000;
+      const r = parseFloat(document.getElementById('r').value);
+      const ccvt = parseFloat(document.getElementById('ccvt').value) * 1e-6;
+      const blocking = parseFloat(document.getElementById('blocking').value) * 1e-6;
+      const k = parseFloat(document.getElementById('k').value);
+
+      const f1Hz = f1 * 1000;
+
+      if (isNaN(f1Hz) || isNaN(f2) || isNaN(r) || isNaN(ccvt) || isNaN(blocking) || isNaN(k)) {
+        document.getElementById('result').innerText = "Please fill in all fields with valid numbers.";
+        document.getElementById('geoMeanResult').innerText = "";
+        document.getElementById('userDesiredResult').innerText = "";
+        return;
+      }
+
+      localStorage.setItem('bandwidthCalc', JSON.stringify({
+        f1: f1,
+        f2: document.getElementById('f2').value,
+        r: document.getElementById('r').value,
+        ccvt: document.getElementById('ccvt').value,
+        blocking: document.getElementById('blocking').value,
+        k: document.getElementById('k').value
+      }));
+
+      const c = (ccvt * blocking) / (ccvt + blocking);
+      const bandwidth = 2 * Math.PI * f1Hz * f2 * r * c * k;
+      const geoMean = Math.sqrt(f1Hz * f2);
+      const desiredBW = Math.abs(f1Hz - f2);
+
+      document.getElementById('userDesiredResult').innerText = `User's Desired Bandwidth: ${desiredBW.toFixed(2)} Hz`;
+      if (bandwidth < desiredBW) {
+        document.getElementById('result').innerHTML = `<span style='color:red;'>Calculated Bandwidth: ${bandwidth.toFixed(2)} Hz — Use the next higher order tuner</span>`;
+      } else if (bandwidth > desiredBW) {
+        document.getElementById('result').innerHTML = `<span style='color:green;'>Calculated Bandwidth: ${bandwidth.toFixed(2)} Hz — Looks Good!</span>`;
+      } else {
+        document.getElementById('result').innerText = `Calculated Bandwidth: ${bandwidth.toFixed(2)} Hz`;
+      }
+      document.getElementById('geoMeanResult').innerText = `F1, F2 Geometric Mean: ${geoMean.toFixed(2)} Hz`;
+
+      const f2Values = [], bwValues = [];
+      for (let i = f2 * 0.5; i <= f2 * 1.5; i += (f2 * 0.05)) {
+        const bw = 2 * Math.PI * f1Hz * i * r * c * k;
+        f2Values.push((i / 1000).toFixed(1));
+        bwValues.push(bw);
+      }
+
+      if (chart) chart.destroy();
+      const ctx = document.getElementById('bandwidthChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: f2Values,
+          datasets: [{
+            label: 'Bandwidth vs Frequency 2 (kHz)',
+            data: bwValues,
+            fill: false,
+            borderColor: 'blue',
+            tension: 0.1
+          }]
+        },
+        options: {
+          scales: {
+            x: { title: { display: true, text: 'Frequency 2 (kHz)' } },
+            y: { title: { display: true, text: 'Bandwidth (Hz)' } }
+          }
+        }
+      });
+
+      const f1Values = [], bwF1Values = [];
+      for (let i = f1Hz * 0.5; i <= f1Hz * 1.5; i += (f1Hz * 0.05)) {
+        const bw = 2 * Math.PI * i * f2 * r * c * k;
+        f1Values.push((i / 1000).toFixed(1));
+        bwF1Values.push(bw);
+      }
+
+      if (chartF1) chartF1.destroy();
+      const ctxF1 = document.getElementById('bandwidthChartF1').getContext('2d');
+      chartF1 = new Chart(ctxF1, {
+        type: 'line',
+        data: {
+          labels: f1Values,
+          datasets: [{
+            label: 'Bandwidth vs Frequency 1 (kHz)',
+            data: bwF1Values,
+            fill: false,
+            borderColor: 'green',
+            tension: 0.1
+          }]
+        },
+        options: {
+          scales: {
+            x: { title: { display: true, text: 'Frequency 1 (kHz)' } },
+            y: { title: { display: true, text: 'Bandwidth (Hz)' } }
+          }
+        }
+      });
+    }
+
+    function resetForm() {
+      document.getElementById('f1').value = '';
+      document.getElementById('f2').value = '';
+      document.getElementById('r').value = '';
+      document.getElementById('ccvt').value = '';
+      document.getElementById('blocking').value = '';
+      document.getElementById('k').selectedIndex = 0;
+      document.getElementById('result').innerText = '';
+      document.getElementById('geoMeanResult').innerText = '';
+      document.getElementById('userDesiredResult').innerText = '';
+      document.getElementById('f1-error').style.display = 'none';
+      document.getElementById('f2-error').style.display = 'none';
+      if (chart) chart.destroy();
+      if (chartF1) chartF1.destroy();
+      localStorage.removeItem('bandwidthCalc');
+    }
+  </script>
+</body>
+</html>

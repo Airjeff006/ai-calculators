@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Agent with Embedded Calculators</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { margin-bottom: 1rem; }
+    button { margin: 0.25rem; padding: 0.5rem 1rem; font-size: 1rem; }
+    iframe { margin-top: 1rem; }
+    #chatbox { width: 100%; height: 150px; margin-top: 1rem; }
+    #response { margin-top: 1rem; white-space: pre-wrap; background: #f0f0f0; padding: 1rem; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>AI Assistant + Calculators</h1>
+
+  <!-- Calculator Selection Buttons -->
+  <div id="calcButtons">
+    <button onclick="loadCalc('4CLO2 Dual Freq.html')">4CL02 Dual-Freq Tuner</button>
+    <button onclick="loadCalc('Series LC Tuner rev 2.html')">Series LC Return Loss</button>
+    <button onclick="loadCalc('Tuner Bandwidth rev 2.html')">Bandwidth Calculator</button>
+  </div>
+
+  <!-- Embedded Calculators -->
+  <iframe id="4CLO2 Dual Freq" src="4CLO2 Dual Freq.html" style="display:none;width:100%;height:800px;border:none;"></iframe>
+  <iframe id="Series LC Tuner rev 2" src="Series LC Tuner rev 2.html" style="display:none;width:100%;height:800px;border:none;"></iframe>
+  <iframe id="Tuner Bandwidth rev 2" src="Tuner Bandwidth rev 2.html" style="display:none;width:100%;height:800px;border:none;"></iframe>
+
+  <!-- Chatbox -->
+  <h2>Ask the AI Assistant</h2>
+  <textarea id="chatbox" placeholder="Ask a question (e.g., Which tuner should I use for 200kHz?)"></textarea><br>
+  <button onclick="askAI()">Ask</button>
+  <div id="response"></div>
+
+  <script>
+    function loadCalc(file) {
+      const names = ['4CLO2 Dual Freq', 'Series LC Tuner rev 2', 'Tuner Bandwidth rev 2'];
+      names.forEach(name => {
+        document.getElementById(name).style.display = name + '.html' === file ? 'block' : 'none';
+      });
+    }
+
+    async function askAI() {
+      const query = document.getElementById('chatbox').value;
+      const responseDiv = document.getElementById('response');
+      responseDiv.innerText = "Thinking...";
+
+      const result = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer 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"
+        },
+        body: JSON.stringify({
+          model: "gpt-4",
+          messages: [
+            { role: "system", content: "You are a helpful assistant for calculator selection and usage." },
+            { role: "user", content: query }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      const data = await result.json();
+      const reply = data.choices?.[0]?.message?.content || "No response.";
+      responseDiv.innerText = reply;
+    }
+  </script>
+</body>
+</html>

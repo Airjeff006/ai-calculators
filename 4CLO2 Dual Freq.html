@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>4CL02 Two‑Frequency Tuner Calculator (Pages 10–12)</title>
+<style>
+  :root{
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color-scheme: light dark;
+  }
+  body{max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.4}
+  h1,h2{line-height:1.2}
+  fieldset{border:1px solid #aaa;border-radius:8px;margin-bottom:1rem;padding:1rem}
+  legend{font-weight:600;padding:0 .4rem}
+  label{display:flex;gap:.5rem;align-items:center;margin:.25rem 0}
+  label span{flex:1 1 240px}
+  input[type="number"]{width:120px;padding:.25rem .35rem}
+  .row{display:flex;flex-wrap:wrap;gap:1rem}
+  .row > div{flex:1 1 260px}
+  table{border-collapse:collapse;width:100%;margin:.5rem 0}
+  th,td{border:1px solid #ccc;padding:.35rem .5rem;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  code{background:#0001;padding:.1rem .25rem;border-radius:4px}
+  .muted{opacity:.7;font-size:.9em}
+  .error{color:#b00020;font-weight:600}
+  .pass{color:#0a0}
+  .fail{color:#b00020}
+  details{margin:.5rem 0}
+  pre{background:#0001;padding:.5rem;border-radius:6px;overflow:auto}
+</style>
+</head>
+<body>
+<h1>Two‑Frequency Resonant Line Tuner Calculator<br><small>(Trench LBI‑19888, pp. 10–12 equations)</small></h1>
+<p>Implements the sizing equations for <strong>C<sub>p</sub></strong>, <strong>L<sub>1</sub></strong>, <strong>L<sub>2</sub></strong>, <strong>L<sub>S1</sub></strong>, and <strong>L<sub>S2</sub></strong> for models 4CL02B×G2 (two‑frequency, phase‑to‑ground). Includes component figure selection and isolation bandwidth guide.</p>
+
+<fieldset>
+  <legend>Inputs</legend>
+  <div class="row">
+    <div>
+      <label><span>F<sub>1</sub> (low) [kHz]</span><input id="f1" type="number" min="1" step="0.001" value="100"></label>
+      <label><span>F<sub>2</sub> (high) [kHz]</span><input id="f2" type="number" min="1" step="0.001" value="130"></label>
+      <label><span>C<sub>c</sub> (coupling capacitor) [nF]</span><input id="cc" type="number" min="0.001" step="0.001" value="5"></label>
+      <label><span>C<sub>b</sub> (60 Hz blocking capacitor) [nF]</span><input id="cb" type="number" min="0.001" step="0.001" value="100"></label>
+      <label><span>Recommended C<sub>p</sub> multiplier (typically 1.25)</span><input id="cpMult" type="number" min="1" step="0.01" value="1.25"></label>
+    </div>
+    <div>
+      <label><span>Impedance Matching Transformer tap (Ω)</span><input id="imtTap" type="number" min="1" step="1" value="320"></label>
+      <label><span>Primary 10% tap enabled?</span><input id="tap10" type="checkbox"></label>
+    </div>
+  </div>
+  <div id="err" class="error" hidden></div>
+  <button id="calc">Calculate</button>
+  <button id="runTests" type="button">Run built‑in tests</button>
+</fieldset>
+
+<h2>Results</h2>
+<table id="results">
+  <thead><tr><th>Quantity</th><th>Symbol</th><th>Value</th><th>Units</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<h2>Component Figure Suggestions (from 19C334103)</h2>
+<ul id="strap"></ul>
+
+<h2>Isolation Estimate (Band Edges)</h2>
+<ul id="iso"></ul>
+
+<details>
+  <summary>Formulas & notes (from LBI‑19888, pp. 10–12)</summary>
+  <ol>
+    <li><code>a = (F1/F2)^2</code>; <code>b = (F2/F1)^2</code></li>
+    <li><code>Cc' = (Cb · Cc) / (Cb + Cc)</code></li>
+    <li><code>Rmin = (F2/F1)^2 − 1</code>; <code>Cp_min = Cc' / Rmin</code></li>
+    <li><code>Cp = k · Cp_min</code> (use k ≈ 1.25 for best blocking bandwidth)</li>
+    <li><code>R = Cc'/Cp</code></li>
+    <li><code>L1 = 1 / ((2πF1)^2 · Cp)</code>, <code>L2 = 1 / ((2πF2)^2 · Cp)</code></li>
+    <li><code>L_S1 = [a(1+R) − 1] / [ Cc' (a − 1) (2πF1)^2 ]</code></li>
+    <li><code>L_S2 = [b(1+R) − 1] / [ Cc' (b − 1) (2πF2)^2 ]</code></li>
+  </ol>
+</details>
+
+<details>
+  <summary>Built‑in test(s)</summary>
+  <p>From the worked example in LBI‑19888 (F1=100 kHz, F2=130 kHz, Cc=5 nF, Cb=100 nF, k=1.25):</p>
+  <ul>
+    <li>Rmin = 0.69</li>
+    <li>Cp ≈ 8.1526 nF (choose 8.57 nF → C25)</li>
+    <li>R ≈ 0.5556</li>
+    <li>L1 ≈ 0.29556 mH</li>
+    <li>L2 ≈ 0.17489 mH</li>
+    <li>LS1 ≈ 0.10357 mH</li>
+    <li>LS2 ≈ 0.74312 mH</li>
+  </ul>
+  <pre id="testOutput">(click "Run built‑in tests")</pre>
+</details>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function fmt(n,d=6){return isFinite(n)?Number(n).toLocaleString(undefined,{maximumFractionDigits:d}):'—'}
+function addRow(t,s,v,u){const r=document.createElement('tr');r.innerHTML=`<td>${t}</td><td>${s}</td><td>${v}</td><td>${u}</td>`;$('results').querySelector('tbody').appendChild(r)}
+
+function compute(){
+  const f1v = parseFloat($('f1').value);
+  const f2v = parseFloat($('f2').value);
+  const ccv = parseFloat($('cc').value);
+  const cbv = parseFloat($('cb').value);
+  const k = parseFloat($('cpMult').value);
+  const err = $('err');
+  const straps = $('strap');
+  const iso = $('iso');
+  err.hidden = true; err.textContent = '';
+  straps.innerHTML=''; iso.innerHTML='';
+  const tb = $('results').querySelector('tbody'); tb.innerHTML='';
+
+  if(!(f1v>0 && f2v>0 && ccv>0 && cbv>0 && k>0)){
+    err.hidden=false; err.textContent='All numeric inputs must be positive.'; return null;
+  }
+  if(f2v <= f1v){ err.hidden=false; err.textContent='F2 must be greater than F1.'; return null; }
+
+  // SI units
+  const F1 = f1v*1e3, F2 = f2v*1e3; // Hz
+  const Cc = ccv*1e-9, Cb = cbv*1e-9; // F
+  const Ccp = (Cb*Cc)/(Cb+Cc);
+  const a = Math.pow(F1/F2,2);
+  const b = Math.pow(F2/F1,2);
+  const Rmin = b - 1;
+  if(Rmin <= 0){ err.hidden=false; err.textContent='Check F1/F2 ratio'; return null; }
+  const Cp_min = Ccp / Rmin;
+  const Cp = k * Cp_min;
+  const R = Ccp / Cp;
+  const twoPi = 2*Math.PI;
+  const L1 = 1 / ( Math.pow(twoPi*F1,2) * Cp );
+  const L2 = 1 / ( Math.pow(twoPi*F2,2) * Cp );
+  const LS1 = (a*(1+R) - 1) / ( Ccp * (a-1) * Math.pow(twoPi*F1,2) );
+  const LS2 = (b*(1+R) - 1) / ( Ccp * (b-1) * Math.pow(twoPi*F2,2) );
+
+  addRow('Freq ratio','F2/F1',fmt(Math.sqrt(b)),'—');
+  addRow('a = (F1/F2)²','a',fmt(a),'—');
+  addRow('b = (F2/F1)²','b',fmt(b),'—');
+  addRow("Effective C'c","C'c",fmt(Ccp*1e9),'nF');
+  addRow('Rmin','Rmin',fmt(Rmin),'—');
+  addRow('Cp min','Cp_min',fmt(Cp_min*1e9),'nF');
+  addRow('k factor','k',fmt(k,3),'—');
+  addRow('Recommended Cp','Cp',fmt(Cp*1e9),'nF');
+  addRow("Ratio R = Cc'/Cp",'R',fmt(R,6),'—');
+  addRow('Trap Inductor L1','L1',fmt(L1*1e3),'mH');
+  addRow('Trap Inductor L2','L2',fmt(L2*1e3),'mH');
+  addRow('Series Inductor LS1','LS1',fmt(LS1*1e3),'mH');
+  addRow('Series Inductor LS2','LS2',fmt(LS2*1e3),'mH');
+
+  // Simple figure picker (rough heuristic; you can refine thresholds with the tables)
+  const cpChart=[8.57,8.0,7.5,7.0,6.0,5.0];
+  const cpNames=['C25','C24','C23','C22','C20','Cb (5.0)'];
+  const Cp_nF = Cp*1e9;
+  let cpMatch = 0;
+  for(let i=1;i<cpChart.length;i++){
+    if(Math.abs(cpChart[i]-Cp_nF) < Math.abs(cpChart[cpMatch]-Cp_nF)) cpMatch=i;
+  }
+  const Ltag = (x)=> x>2e-3? 'L7' : x>1.3e-3? 'L6' : 'L4';
+  straps.innerHTML = '';
+  straps.innerHTML += `<li>Capacitor Stack: use <strong>${cpNames[cpMatch]}</strong> (~${cpChart[cpMatch]} nF)</li>`;
+  straps.innerHTML += `<li>Inductor L1: match <strong>${Ltag(L1)}</strong></li>`;
+  straps.innerHTML += `<li>Inductor L2: match <strong>${Ltag(L2)}</strong></li>`;
+  straps.innerHTML += `<li>Series Inductor LS1: match <strong>${Ltag(LS1)}</strong></li>`;
+  straps.innerHTML += `<li>Series Inductor LS2: match <strong>${Ltag(LS2)}</strong></li>`;
+
+  // crude 15 dB isolation estimate (+/- ~√1.78 ≈ 1.334 bandwidth around each tuned freq)
+  const lowerEdge1 = F1/Math.sqrt(1.78), upperEdge1 = F1*Math.sqrt(1.78);
+  const lowerEdge2 = F2/Math.sqrt(1.78), upperEdge2 = F2*Math.sqrt(1.78);
+  iso.innerHTML = '';
+  iso.innerHTML += `<li>Estimated 15 dB isolation band for F1: <strong>${fmt(lowerEdge1/1e3)}–${fmt(upperEdge1/1e3)} kHz</strong></li>`;
+  iso.innerHTML += `<li>Estimated 15 dB isolation band for F2: <strong>${fmt(lowerEdge2/1e3)}–${fmt(upperEdge2/1e3)} kHz</strong></li>`;
+
+  return {F1,F2,Ccp,a,b,Rmin,Cp_min,Cp,R,L1,L2,LS1,LS2};
+}
+
+$('calc').addEventListener('click', compute);
+
+// --- Built-in tests ---
+$('runTests').addEventListener('click', ()=>{
+  const out = $('testOutput');
+  const tests = [
+    {
+      name: 'Example from LBI‑19888 p.11 (F1=100k, F2=130k, Cc=5nF, Cb=100nF, k=1.25)',
+      input: {f1:100,f2:130,cc:5,cb:100,k:1.25},
+      expect: {
+        Rmin: 0.69,
+        Cp_nF: 8.1526,
+        R: 0.5556,
+        L1_mH: 0.29556,
+        L2_mH: 0.17489,
+        LS1_mH: 0.10357,
+        LS2_mH: 0.74312
+      }
+    }
+  ];
+  const tolRel = 0.01; // 1% tolerance
+  let report = '';
+  tests.forEach(t=>{
+    $('f1').value=t.input.f1; $('f2').value=t.input.f2; $('cc').value=t.input.cc; $('cb').value=t.input.cb; $('cpMult').value=t.input.k;
+    const r = compute();
+    if(!r){ report += `\n${t.name}: FAILED to compute`; return; }
+    const got = {
+      Rmin: r.Rmin,
+      Cp_nF: r.Cp*1e9,
+      R: r.R,
+      L1_mH: r.L1*1e3,
+      L2_mH: r.L2*1e3,
+      LS1_mH: r.LS1*1e3,
+      LS2_mH: r.LS2*1e3
+    };
+    const keys = Object.keys(t.expect);
+    let allPass = true;
+    keys.forEach(k=>{
+      const exp = t.expect[k];
+      const g = got[k];
+      const rel = Math.abs((g-exp)/exp);
+      const pass = rel <= tolRel;
+      if(!pass) allPass=false;
+      report += `${k}: got ${g.toExponential(6)} expected ${exp.toExponential?exp.toExponential(6):exp} (rel err ${(rel*100).toFixed(3)}%) ${pass?'✔':'✘'}\n`;
+    });
+    report = `${t.name}: ${allPass?'PASS':'FAIL'}\n` + report + '\n';
+  });
+  out.textContent = report;
+});
+</script>
+</body>
+</html>

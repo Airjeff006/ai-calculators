@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RCL Return Loss Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; background: #f9f9f9; }
+    .container { max-width: 600px; margin: auto; background: #fff; padding: 2rem; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    label { display: block; margin: 1rem 0 0.3rem; font-weight: bold; }
+    input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+    button { margin-top: 1.5rem; padding: 0.75rem 1.5rem; font-size: 1rem; border: none; border-radius: 5px; background: #007bff; color: #fff; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    #diagram { background: #f0f0f0; padding: 1rem; border-radius: 5px; font-family: monospace; white-space: pre; text-align: center; }
+    #resultRL, #resultPower, #resultTransformer, #resultResonance { margin-top: 1rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Series R–L–C with Transformer Return Loss &amp; Resonance</h2>
+    <div id="diagram">
+Source ── 50 Ω ──┐
+                 │ transformer primary
+             ┌───▼───┐
+             │       │ secondary to R–L–C
+             │  1:n  │
+             │       │
+             └───┬───┘
+                 │
+             ┌───▼───┐
+             │   L   │
+             ├───┬───┤
+             │   C   │
+             ├───┬───┤
+             │   R   │
+             └───┬───┘
+                 │
+               GND
+    </div>
+    <form id="rclForm">
+      <label for="resistance">Resistance (Ω)</label>
+      <input type="number" id="resistance" name="resistance" min="0" step="0.1" value="50" required />
+
+      <label for="inductance">Inductance (mH)</label>
+      <input type="number" id="inductance" name="inductance" min="0.01" step="0.01" value="10" required />
+
+      <label for="capacitance">Capacitance (µF)</label>
+      <input type="number" id="capacitance" name="capacitance" min="0.01" step="0.01" value="0.1" required />
+
+      <label for="freqInput">Test Frequency (kHz)</label>
+      <input type="number" id="freqInput" name="freqInput" min="0.03" step="0.001" value="40" required />
+
+      <label for="highZ">Transformer High-Side Impedance (Ω)</label>
+      <input type="number" id="highZ" name="highZ" min="150" max="450" step="1" value="150" required />
+
+      <button type="button" id="calculateBtn">Calculate</button>
+    </form>
+    <div id="resultRL"></div>
+    <div id="resultPower"></div>
+    <div id="resultTransformer"></div>
+    <div id="resultResonance"></div>
+    <canvas id="returnLossChart" width="600" height="400"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.6.4/math.min.js"></script>
+  <script>
+    // Load saved values from localStorage
+    window.addEventListener('load', () => {
+      ['resistance','inductance','capacitance','freqInput','highZ'].forEach(id => {
+        const val = localStorage.getItem(id);
+        if (val !== null) document.getElementById(id).value = val;
+      });
+    });
+
+    function calculateReturnLossWithTransformer(R, L, C, Z_low, Z_high, freq) {
+      const omega = 2 * Math.PI * freq;
+      const ZL = math.complex(0, omega * L);
+      const ZC = math.complex(0, -1 / (omega * C));
+      const ZR = math.complex(R, 0);
+      const Zin_circuit = math.add(math.add(ZL, ZC), ZR);
+      const n = Math.sqrt(Z_high / Z_low);
+      const scale = Z_low / Z_high;
+      const Zin_primary = math.multiply(Zin_circuit, scale);
+      const gamma = math.divide(math.subtract(Zin_primary, Z_low), math.add(Zin_primary, Z_low));
+      const RL = 20 * Math.log10(math.abs(gamma));
+      const reflectedPower = Math.pow(math.abs(gamma), 2) * 100;
+      return { RL, reflectedPower, n };
+    }
+
+    document.getElementById('calculateBtn').addEventListener('click', () => {
+      // Read and save inputs
+      ['resistance','inductance','capacitance','freqInput','highZ'].forEach(id => {
+        const val = document.getElementById(id).value;
+        localStorage.setItem(id, val);
+      });
+
+      const R = parseFloat(document.getElementById('resistance').value);
+      const L = parseFloat(document.getElementById('inductance').value) * 1e-3;
+      const C = parseFloat(document.getElementById('capacitance').value) * 1e-6;
+      const freq = parseFloat(document.getElementById('freqInput').value) * 1000;
+      const Z_low = 50;
+      const Z_high = parseFloat(document.getElementById('highZ').value);
+
+      const { RL, reflectedPower, n } = calculateReturnLossWithTransformer(R, L, C, Z_low, Z_high, freq);
+      document.getElementById('resultRL').textContent =
+        `Return Loss at ${(freq/1000).toFixed(3)} kHz: ${RL.toFixed(2)} dB`;
+      document.getElementById('resultPower').textContent =
+        `Reflected Power: ${reflectedPower.toFixed(2)} %`;
+      document.getElementById('resultTransformer').textContent =
+        `Transformer Turns Ratio (n): ${n.toFixed(2)} (primary:secondary)`;
+
+      const omega0 = 1 / Math.sqrt(L * C);
+      const f0 = omega0 / (2 * Math.PI);
+      const XL0 = omega0 * L;
+      const XC0 = 1 / (omega0 * C);
+      document.getElementById('resultResonance').textContent =
+        `Resonant Frequency: ${(f0/1000).toFixed(2)} kHz (Xₗ = ${XL0.toFixed(2)} Ω, X꜀ = ${XC0.toFixed(2)} Ω)`;
+    });
+  </script>
+</body>
+</html>
